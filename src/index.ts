@@ -1,77 +1,152 @@
 import {
+  Cookie,
   CookieOptions,
+  CookiePrefixOptions,
+  SignedCookie,
   parse,
   parseSigned,
   serialize,
   serializeSigned,
 } from "./utils";
+interface GetCookie {
+  (headers: Headers, key: string): string | undefined;
+  (headers: Headers): Cookie;
+  (
+    headers: Headers,
+    key: string,
+    prefixOptions: CookiePrefixOptions,
+  ): string | undefined;
+}
 
-export function getCookie(headers: Headers, key?: string) {
+interface GetSignedCookie {
+  (
+    headers: Headers,
+    secret: string | BufferSource,
+    key: string,
+  ): Promise<string | undefined | false>;
+  (headers: Headers, secret: string): Promise<SignedCookie>;
+  (
+    headers: Headers,
+    secret: string | BufferSource,
+    key: string,
+    prefixOptions: CookiePrefixOptions,
+  ): Promise<string | undefined | false>;
+}
+
+export const getCookie: GetCookie = (
+  headers,
+  key?,
+  prefix?: CookiePrefixOptions,
+) => {
   const cookie = headers.get("Cookie");
   if (typeof key === "string") {
     if (!cookie) {
       return undefined;
     }
-    const obj = parse(cookie, key);
-    return obj[key];
+    let finalKey = key;
+    if (prefix === "secure") {
+      finalKey = "__Secure-" + key;
+    } else if (prefix === "host") {
+      finalKey = "__Host-" + key;
+    }
+    const obj = parse(cookie, finalKey);
+    return obj[finalKey];
   }
   if (!cookie) {
     return {};
   }
   const obj = parse(cookie);
-
   return obj as any;
-}
+};
 
-export async function getSignedCookie(
-  headers: Headers,
-  secret: string | BufferSource,
-  key?: string,
-) {
+export const getSignedCookie: GetSignedCookie = async (
+  headers,
+  secret,
+  key?,
+  prefix?: CookiePrefixOptions,
+) => {
   const cookie = headers.get("Cookie");
   if (typeof key === "string") {
     if (!cookie) {
       return undefined;
     }
-    const obj = await parseSigned(cookie, secret, key);
-    return obj[key];
+    let finalKey = key;
+    if (prefix === "secure") {
+      finalKey = "__Secure-" + key;
+    } else if (prefix === "host") {
+      finalKey = "__Host-" + key;
+    }
+    const obj = await parseSigned(cookie, secret, finalKey);
+    return obj[finalKey];
   }
   if (!cookie) {
     return {};
   }
   const obj = await parseSigned(cookie, secret);
-
   return obj as any;
-}
+};
 
-export function setCookie(
+export const setCookie = (
   headers: Headers,
   name: string,
   value: string,
   opt?: CookieOptions,
-): void {
-  const cookie = serialize(name, value, { path: "/", ...opt });
+): void => {
+  // Cookie names prefixed with __Secure- can be used only if they are set with the secure attribute.
+  // Cookie names prefixed with __Host- can be used only if they are set with the secure attribute, must have a path of / (meaning any path at the host)
+  // and must not have a Domain attribute.
+  // Read more at https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#cookie_prefixes'
+  let cookie;
+  if (opt?.prefix === "secure") {
+    cookie = serialize("__Secure-" + name, value, {
+      path: "/",
+      ...opt,
+      secure: true,
+    });
+  } else if (opt?.prefix === "host") {
+    cookie = serialize("__Host-" + name, value, {
+      ...opt,
+      path: "/",
+      secure: true,
+      domain: undefined,
+    });
+  } else {
+    cookie = serialize(name, value, { path: "/", ...opt });
+  }
   headers.append("set-cookie", cookie);
-}
+};
 
-export async function setSignedCookie(
+export const setSignedCookie = async (
   headers: Headers,
   name: string,
   value: string,
   secret: string | BufferSource,
   opt?: CookieOptions,
-): Promise<void> {
-  const cookie = await serializeSigned(name, value, secret, {
-    path: "/",
-    ...opt,
-  });
+): Promise<void> => {
+  let cookie;
+  if (opt?.prefix === "secure") {
+    cookie = await serializeSigned("__Secure-" + name, value, secret, {
+      path: "/",
+      ...opt,
+      secure: true,
+    });
+  } else if (opt?.prefix === "host") {
+    cookie = await serializeSigned("__Host-" + name, value, secret, {
+      ...opt,
+      path: "/",
+      secure: true,
+      domain: undefined,
+    });
+  } else {
+    cookie = await serializeSigned(name, value, secret, { path: "/", ...opt });
+  }
   headers.append("set-cookie", cookie);
-}
+};
 
-export function deleteCookie(
+export const deleteCookie = (
   headers: Headers,
   name: string,
   opt?: CookieOptions,
-): void {
+): void => {
   setCookie(headers, name, "", { ...opt, maxAge: 0 });
-}
+};

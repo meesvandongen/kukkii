@@ -1,5 +1,12 @@
 export type Cookie = Record<string, string>;
 export type SignedCookie = Record<string, string | false>;
+
+type PartitionCookieConstraint =
+  | { partition: true; secure: true }
+  | { partition?: boolean; secure?: boolean }; // reset to default
+type SecureCookieConstraint = { secure: true };
+type HostCookieConstraint = { secure: true; path: "/"; domain?: undefined };
+
 export type CookieOptions = {
   domain?: string;
   expires?: Date;
@@ -10,7 +17,15 @@ export type CookieOptions = {
   signingSecret?: string;
   sameSite?: "Strict" | "Lax" | "None";
   partitioned?: boolean;
-};
+  prefix?: CookiePrefixOptions;
+} & PartitionCookieConstraint;
+export type CookiePrefixOptions = "host" | "secure";
+
+export type CookieConstraint<Name> = Name extends `__Secure-${string}`
+  ? CookieOptions & SecureCookieConstraint
+  : Name extends `__Host-${string}`
+    ? CookieOptions & HostCookieConstraint
+    : CookieOptions;
 
 const algorithm = { name: "HMAC", hash: "SHA-256" };
 
@@ -45,7 +60,7 @@ async function verifySignature(
   try {
     const signatureBinStr = atob(base64Signature);
     const signature = new Uint8Array(signatureBinStr.length);
-    for (let i = 0; i < signatureBinStr.length; i++) {
+    for (let i = 0, len = signatureBinStr.length; i < len; i++) {
       signature[i] = signatureBinStr.charCodeAt(i);
     }
     return await crypto.subtle.verify(
@@ -133,11 +148,40 @@ function _serialize(
 ): string {
   let cookie = `${name}=${value}`;
 
+  if (name.startsWith("__Secure-") && !opt.secure) {
+    // FIXME: replace link to RFC
+    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.3.1
+    throw new Error("__Secure- Cookie must have Secure attributes");
+  }
+
+  if (name.startsWith("__Host-")) {
+    // FIXME: replace link to RFC
+    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.3.2
+    if (!opt.secure) {
+      throw new Error("__Host- Cookie must have Secure attributes");
+    }
+
+    if (opt.path !== "/") {
+      throw new Error('__Host- Cookie must have Path attributes with "/"');
+    }
+
+    if (opt.domain) {
+      throw new Error("__Host- Cookie must not have Domain attributes");
+    }
+  }
+
   if (opt && typeof opt.maxAge === "number" && opt.maxAge >= 0) {
+    if (opt.maxAge > 34560000) {
+      // FIXME: replace link to RFC
+      // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.2.2
+      throw new Error(
+        "Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.",
+      );
+    }
     cookie += `; Max-Age=${Math.floor(opt.maxAge)}`;
   }
 
-  if (opt.domain) {
+  if (opt.domain && opt.prefix !== "host") {
     cookie += `; Domain=${opt.domain}`;
   }
 
@@ -146,6 +190,13 @@ function _serialize(
   }
 
   if (opt.expires) {
+    if (opt.expires.getTime() - Date.now() > 34560000000) {
+      // FIXME: replace link to RFC
+      // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.2.1
+      throw new Error(
+        "Cookies Expires SHOULD NOT be greater than 400 days (34560000 seconds) in the future.",
+      );
+    }
     cookie += `; Expires=${opt.expires.toUTCString()}`;
   }
 
@@ -162,16 +213,21 @@ function _serialize(
   }
 
   if (opt.partitioned) {
+    // FIXME: replace link to RFC
+    // https://www.ietf.org/archive/id/draft-cutler-httpbis-partitioned-cookies-01.html#section-2.3
+    if (!opt.secure) {
+      throw new Error("Partitioned Cookie must have Secure attributes");
+    }
     cookie += "; Partitioned";
   }
 
   return cookie;
 }
 
-export function serialize(
+export function serialize<Name extends string>(
   name: string,
   value: string,
-  opt: CookieOptions = {},
+  opt?: CookieConstraint<Name>,
 ): string {
   value = encodeURIComponent(value);
   return _serialize(name, value, opt);
