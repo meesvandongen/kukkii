@@ -8,6 +8,8 @@ import {
   serialize,
   serializeSigned,
 } from "./utils";
+import { seal, unseal, defaults as sealDefaults } from "iron-webcrypto";
+
 interface GetCookie {
   (headers: Headers, key: string): string | undefined;
   (headers: Headers): Cookie;
@@ -16,21 +18,6 @@ interface GetCookie {
     key: string,
     prefixOptions: CookiePrefixOptions,
   ): string | undefined;
-}
-
-interface GetSignedCookie {
-  (
-    headers: Headers,
-    secret: string | BufferSource,
-    key: string,
-  ): Promise<string | undefined | false>;
-  (headers: Headers, secret: string): Promise<SignedCookie>;
-  (
-    headers: Headers,
-    secret: string | BufferSource,
-    key: string,
-    prefixOptions: CookiePrefixOptions,
-  ): Promise<string | undefined | false>;
 }
 
 export const getCookie: GetCookie = (
@@ -58,6 +45,21 @@ export const getCookie: GetCookie = (
   const obj = parse(cookie);
   return obj as any;
 };
+
+interface GetSignedCookie {
+  (
+    headers: Headers,
+    secret: string | BufferSource,
+    key: string,
+  ): Promise<string | undefined | false>;
+  (headers: Headers, secret: string): Promise<SignedCookie>;
+  (
+    headers: Headers,
+    secret: string | BufferSource,
+    key: string,
+    prefixOptions: CookiePrefixOptions,
+  ): Promise<string | undefined | false>;
+}
 
 export const getSignedCookie: GetSignedCookie = async (
   headers,
@@ -149,4 +151,18 @@ export const deleteCookie = (
   opt?: CookieOptions,
 ): void => {
   setCookie(headers, name, "", { ...opt, maxAge: 0 });
+};
+
+export const setSealedCookie = async (
+  headers: Headers,
+  name: string,
+  value: string,
+  secret: string | Uint8Array,
+  opt?: CookieOptions,
+): Promise<void> => {
+  const sealed = await seal(globalThis.crypto, value, secret, {
+    ...sealDefaults,
+    ttl: opt?.maxAge ? opt.maxAge * 1000 : 0,
+  });
+  setCookie(headers, name, sealed, opt);
 };

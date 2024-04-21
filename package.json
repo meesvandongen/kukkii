@@ -38,5 +38,8 @@
         "types": "./dist/types/index.d.ts"
       }
     }
+  },
+  "dependencies": {
+    "iron-webcrypto": "^1.1.1"
   }
 }
