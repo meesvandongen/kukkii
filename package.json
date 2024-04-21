@@ -1,15 +1,19 @@
 {
   "name": "kukkii",
   "version": "0.1.0",
-  "types": "./dist/types/index.d.ts",
-  "main": "./dist/lib/index.js",
-  "module": "./dist/es/index.js",
-  "source": "./src/index.ts",
-  "scripts": {
-    "build": "modern build"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meesvandongen/kukkii.git"
   },
-  "dependencies": {},
-  "peerDependencies": {},
+  "bugs": {
+    "url": "https://github.com/meesvandongen/kukkii/issues"
+  },
+  "scripts": {
+    "build": "modern build",
+    "changeset": "changeset",
+    "release": "changeset publish",
+    "prerelease": "modern build"
+  },
   "devDependencies": {
     "@modern-js/module-tools": "2.49.0",
     "typescript": "~5.4.5",
@@ -20,5 +24,20 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./dist/es/index.js",
+        "types": "./dist/types/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/lib/index.js",
+        "types": "./dist/types/index.d.ts"
+      }
+    }
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.27.1"
   }
 }
