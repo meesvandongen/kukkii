@@ -254,12 +254,12 @@ function fixedTimeComparison(a: string, b: string): boolean {
  * @param sealed The iron protocol string generated with seal()
  * @param password A string, buffer, or object
  * @param options Object used to customize the key derivation algorithm
- * @returns The verified decrypted object (can be null)
+ * @returns The verified decrypted object
  */
 export async function unseal(
   sealed: string,
   password: string,
-): Promise<string | null> {
+): Promise<string> {
   const parts = sealed.split("*");
   if (parts.length !== 5) {
     throw new Error("Incorrect number of sealed components");

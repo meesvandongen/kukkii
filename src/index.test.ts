@@ -117,9 +117,9 @@ describe("Set cookie", () => {
     const headers = new Headers();
     await setSignedCookie(
       headers,
-      "delicious_cookie",
       "macha",
       "secret chocolate chips",
+      "delicious_cookie",
     );
     const header = headers.get("Set-Cookie");
     expect(header).toBe(
@@ -131,89 +131,14 @@ describe("Set cookie", () => {
     const headers = new Headers();
     await setSignedCookie(
       headers,
-      "delicious_cookie",
       "macha",
       "secret chocolate chips",
+      "delicious_cookie",
       { path: "/a" },
     );
     const header = headers.get("Set-Cookie");
     expect(header).toBe(
       "delicious_cookie=macha.diubJPY8O7hI1pLa42QSfkPiyDWQ0I4DnlACH%2FN2HaA%3D; Path=/a",
-    );
-  });
-
-  it("Set cookie with secure prefix", async () => {
-    const headers = new Headers();
-    setCookie(headers, "delicious_cookie", "macha", {
-      prefix: "secure",
-      secure: false,
-    });
-    const header = headers.get("Set-Cookie");
-    expect(header).toBe("__Secure-delicious_cookie=macha; Path=/; Secure");
-  });
-
-  it("Get cookie with secure prefix", async () => {
-    const headers = new Headers({
-      Cookie: "__Secure-delicious_cookie=macha",
-    });
-    const cookie = getCookie(headers, "delicious_cookie", "secure");
-    expect(cookie).toBe("macha");
-  });
-
-  it("Set cookie with host prefix", async () => {
-    const headers = new Headers();
-    setCookie(headers, "delicious_cookie", "macha", {
-      prefix: "host",
-      path: "/foo",
-      domain: "example.com",
-      secure: false,
-    });
-    const header = headers.get("Set-Cookie");
-    expect(header).toBe("__Host-delicious_cookie=macha; Path=/; Secure");
-  });
-
-  it("Get cookie with host prefix", async () => {
-    const headers = new Headers({
-      Cookie: "__Host-delicious_cookie=macha",
-    });
-    const cookie = getCookie(headers, "delicious_cookie", "host");
-    expect(cookie).toBe("macha");
-  });
-
-  it("Set signed cookie with secure prefix", async () => {
-    const headers = new Headers();
-    await setSignedCookie(
-      headers,
-      "delicious_cookie",
-      "macha",
-      "secret choco chips",
-      {
-        prefix: "secure",
-      },
-    );
-    const header = headers.get("Set-Cookie");
-    expect(header).toBe(
-      "__Secure-delicious_cookie=macha.i225faTyCrJUY8TvpTuJHI20HBWbQ89B4GV7lT4E%2FB0%3D; Path=/; Secure",
-    );
-  });
-
-  it("Set signed cookie with host prefix", async () => {
-    const headers = new Headers({});
-    await setSignedCookie(
-      headers,
-      "delicious_cookie",
-      "macha",
-      "secret choco chips",
-      {
-        prefix: "host",
-        domain: "example.com", // this will be ignored
-        path: "example.com", // thi will be ignored
-        secure: false, // this will be ignored
-      },
-    );
-    const header = headers.get("Set-Cookie");
-    expect(header).toBe(
-      "__Host-delicious_cookie=macha.i225faTyCrJUY8TvpTuJHI20HBWbQ89B4GV7lT4E%2FB0%3D; Path=/; Secure",
     );
   });
 
@@ -238,9 +163,9 @@ describe("Set cookie", () => {
     const headers = new Headers();
     await setSignedCookie(
       headers,
-      "great_cookie",
       "banana",
       "secret chocolate chips",
+      "great_cookie",
       {
         path: "/",
         secure: true,
@@ -308,9 +233,9 @@ describe("Sealed cookie", () => {
     const responseHeaders = new Headers();
     await setSealedCookie(
       responseHeaders,
-      "delicious_cookie",
       "macha",
       "secret choco chips",
+      "delicious_cookie",
     );
     const header = responseHeaders.get("Set-Cookie")!;
     expect(header).toMatch(/delicious_cookie=.*; Path=\//);
@@ -323,8 +248,8 @@ describe("Sealed cookie", () => {
 
     const value = await getSealedCookie(
       requestHeaders,
-      "delicious_cookie",
       "secret choco chips",
+      "delicious_cookie",
     );
 
     expect(value).toBe("macha");
@@ -334,13 +259,14 @@ describe("Sealed cookie", () => {
     const responseHeaders = new Headers();
     await setSealedCookie(
       responseHeaders,
-      "delicious_cookie",
       "macha",
       "secret choco chips",
+      "delicious_cookie",
       { path: "/a" },
     );
     const header = responseHeaders.get("Set-Cookie")!;
-    expect(header).toMatch(/delicious_cookie=.*; Path=\/a/);
+
+    expect(header).toMatch(/delicious_cookie=.*\*.*; Path=\/a/);
 
     const sealed = header.split(";")[0].split("=")[1];
 
@@ -350,23 +276,36 @@ describe("Sealed cookie", () => {
 
     const value = await getSealedCookie(
       requestHeaders,
-      "delicious_cookie",
       "secret choco chips",
+      "delicious_cookie",
     );
 
     expect(value).toBe("macha");
+  });
+
+  it("Get sealed cookie with multiple values", async () => {
+    const requestHeaders = new Headers({
+      Cookie: `delicious_cookie=43ca02793d3794b8f816e7897647705334e0f66e7a2cc65f454d22d7df38f3bb*IvIZ2irISsKWNb16InVMyA*tg-je9HiqQ742lPUVmQAyw*d3f8962bdf91c01a1b947d1079a540d6db0b3c10f696b1131980b64d122ad0f6*7vbgkgbdBFyl5uCibXICilzDcQ8jHauBlDOTBMviYeI; more_delicious_cookie=efe4309c168e62a685f5bffb5d2b6f0d1dbcc56c8ccdbd0b444d13f09692e872*foczA0ljZvJA4b3KG-RewQ*CAa3rAlj4jjiGCr01Xdj6w*cc69bab100d1afdd1755c36db66aa0e991f7caadd0dc8ae03a0c907d5ed4807e*ZDq2FNIZgv-39BN1MqOylXLN8wulM1Bz7OFhKxMamb8;`,
+    });
+
+    const value = await getSealedCookie(requestHeaders, "secret");
+
+    expect(value).toEqual({
+      delicious_cookie: "macha",
+      more_delicious_cookie: "choco",
+    });
   });
 
   it("rejects when sealed cookie has invalid signature", async () => {
     const responseHeaders = new Headers();
     await setSealedCookie(
       responseHeaders,
-      "delicious_cookie",
       "macha",
       "secret choco chips",
+      "delicious_cookie",
     );
     const header = responseHeaders.get("Set-Cookie")!;
-    expect(header).toMatch(/delicious_cookie=.*; Path=\//);
+    expect(header).toMatch(/delicious_cookie=.*\*.*; Path=\//);
 
     const sealed = header.split(";")[0].split("=")[1];
 
@@ -375,8 +314,12 @@ describe("Sealed cookie", () => {
     });
 
     expect(
-      getSealedCookie(requestHeaders, "delicious_cookie", "invalid secret"),
-    ).rejects.toThrow();
+      await getSealedCookie(
+        requestHeaders,
+        "delicious_cookie",
+        "invalid secret",
+      ),
+    ).toBe(false);
   });
 
   it("rejects when sealed cookie has invalid value", async () => {
@@ -385,7 +328,11 @@ describe("Sealed cookie", () => {
     });
 
     expect(
-      getSealedCookie(requestHeaders, "delicious_cookie", "secret choco chips"),
-    ).rejects.toThrow();
+      await getSealedCookie(
+        requestHeaders,
+        "secret choco chips",
+        "delicious_cookie",
+      ),
+    ).toBe(false);
   });
 });

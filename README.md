@@ -1,6 +1,6 @@
 # Kukkii
 
-A copy of HonoJS cookie helpers, but changed to not be Hono specific.
+A copy of HonoJS cookie helpers, but changed to not be Hono specific. Also implements setSealedCookie and getSealedCookie.
 
 ```bash
 npm i kukkii
@@ -9,6 +9,13 @@ npm i kukkii
 See also https://hono.dev/helpers/cookie
 
 ## API
+
+### getSealedCookie
+
+```ts
+import { getSealedCookie } from "kukkii";
+
+
 
 ### getCookie
 
