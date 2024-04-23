@@ -12,7 +12,8 @@
     "build": "modern build",
     "changeset": "changeset",
     "release": "changeset publish",
-    "prerelease": "modern build"
+    "prerelease": "modern build",
+    "test": "bun test"
   },
   "devDependencies": {
     "@modern-js/module-tools": "2.49.0",
@@ -38,5 +39,6 @@
         "types": "./dist/types/index.d.ts"
       }
     }
-  }
+  },
+  "dependencies": {}
 }

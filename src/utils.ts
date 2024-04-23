@@ -1,11 +1,11 @@
+import { seal, unseal } from "./iron-webcrypto/iron-webcrypto";
+
 export type Cookie = Record<string, string>;
-export type SignedCookie = Record<string, string | false>;
+export type MaybeCookie = string | false;
 
 type PartitionCookieConstraint =
   | { partition: true; secure: true }
   | { partition?: boolean; secure?: boolean }; // reset to default
-type SecureCookieConstraint = { secure: true };
-type HostCookieConstraint = { secure: true; path: "/"; domain?: undefined };
 
 export type CookieOptions = {
   domain?: string;
@@ -17,15 +17,7 @@ export type CookieOptions = {
   signingSecret?: string;
   sameSite?: "Strict" | "Lax" | "None";
   partitioned?: boolean;
-  prefix?: CookiePrefixOptions;
 } & PartitionCookieConstraint;
-export type CookiePrefixOptions = "host" | "secure";
-
-export type CookieConstraint<Name> = Name extends `__Secure-${string}`
-  ? CookieOptions & SecureCookieConstraint
-  : Name extends `__Host-${string}`
-    ? CookieOptions & HostCookieConstraint
-    : CookieOptions;
 
 const algorithm = { name: "HMAC", hash: "SHA-256" };
 
@@ -118,8 +110,8 @@ export async function parseSigned(
   cookie: string,
   secret: string | BufferSource,
   name?: string,
-): Promise<SignedCookie> {
-  const parsedCookie: SignedCookie = {};
+): Promise<Record<string, MaybeCookie>> {
+  const parsedCookie: Record<string, MaybeCookie> = {};
   const secretKey = await getCryptoKey(secret);
 
   for (const [key, value] of Object.entries(parse(cookie, name))) {
@@ -141,6 +133,24 @@ export async function parseSigned(
   return parsedCookie;
 }
 
+export async function parseSealed(
+  cookie: string,
+  secret: string,
+  name?: string,
+): Promise<Record<string, MaybeCookie>> {
+  const parsedCookie: Record<string, MaybeCookie> = {};
+
+  for (const [key, value] of Object.entries(parse(cookie, name))) {
+    if (!value.includes("*")) {
+      continue;
+    }
+
+    const decrypted = await unseal(value, secret).catch(() => false as false);
+    parsedCookie[key] = decrypted;
+  }
+
+  return parsedCookie;
+}
 function _serialize(
   name: string,
   value: string,
@@ -148,40 +158,11 @@ function _serialize(
 ): string {
   let cookie = `${name}=${value}`;
 
-  if (name.startsWith("__Secure-") && !opt.secure) {
-    // FIXME: replace link to RFC
-    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.3.1
-    throw new Error("__Secure- Cookie must have Secure attributes");
-  }
-
-  if (name.startsWith("__Host-")) {
-    // FIXME: replace link to RFC
-    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.3.2
-    if (!opt.secure) {
-      throw new Error("__Host- Cookie must have Secure attributes");
-    }
-
-    if (opt.path !== "/") {
-      throw new Error('__Host- Cookie must have Path attributes with "/"');
-    }
-
-    if (opt.domain) {
-      throw new Error("__Host- Cookie must not have Domain attributes");
-    }
-  }
-
   if (opt && typeof opt.maxAge === "number" && opt.maxAge >= 0) {
-    if (opt.maxAge > 34560000) {
-      // FIXME: replace link to RFC
-      // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.2.2
-      throw new Error(
-        "Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.",
-      );
-    }
     cookie += `; Max-Age=${Math.floor(opt.maxAge)}`;
   }
 
-  if (opt.domain && opt.prefix !== "host") {
+  if (opt.domain) {
     cookie += `; Domain=${opt.domain}`;
   }
 
@@ -190,13 +171,6 @@ function _serialize(
   }
 
   if (opt.expires) {
-    if (opt.expires.getTime() - Date.now() > 34560000000) {
-      // FIXME: replace link to RFC
-      // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.2.1
-      throw new Error(
-        "Cookies Expires SHOULD NOT be greater than 400 days (34560000 seconds) in the future.",
-      );
-    }
     cookie += `; Expires=${opt.expires.toUTCString()}`;
   }
 
@@ -213,21 +187,16 @@ function _serialize(
   }
 
   if (opt.partitioned) {
-    // FIXME: replace link to RFC
-    // https://www.ietf.org/archive/id/draft-cutler-httpbis-partitioned-cookies-01.html#section-2.3
-    if (!opt.secure) {
-      throw new Error("Partitioned Cookie must have Secure attributes");
-    }
     cookie += "; Partitioned";
   }
 
   return cookie;
 }
 
-export function serialize<Name extends string>(
+export function serialize(
   name: string,
   value: string,
-  opt?: CookieConstraint<Name>,
+  opt: CookieOptions = {},
 ): string {
   value = encodeURIComponent(value);
   return _serialize(name, value, opt);
@@ -241,6 +210,17 @@ export async function serializeSigned(
 ): Promise<string> {
   const signature = await makeSignature(value, secret);
   value = `${value}.${signature}`;
+  value = encodeURIComponent(value);
+  return _serialize(name, value, opt);
+}
+
+export async function serializeSealed(
+  name: string,
+  value: string,
+  secret: string,
+  opt: CookieOptions = {},
+): Promise<string> {
+  value = await seal(value, secret);
   value = encodeURIComponent(value);
   return _serialize(name, value, opt);
 }
