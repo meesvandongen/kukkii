@@ -1,3 +1,4 @@
+import { seal, unseal } from "./iron-webcrypto/iron-webcrypto";
 import {
   Cookie,
   CookieOptions,
@@ -8,7 +9,6 @@ import {
   serialize,
   serializeSigned,
 } from "./utils";
-import { seal, unseal, defaults as sealDefaults } from "iron-webcrypto";
 
 interface GetCookie {
   (headers: Headers, key: string): string | undefined;
@@ -157,12 +157,21 @@ export const setSealedCookie = async (
   headers: Headers,
   name: string,
   value: string,
-  secret: string | Uint8Array,
+  secret: string,
   opt?: CookieOptions,
 ): Promise<void> => {
-  const sealed = await seal(globalThis.crypto, value, secret, {
-    ...sealDefaults,
-    ttl: opt?.maxAge ? opt.maxAge * 1000 : 0,
-  });
-  setCookie(headers, name, sealed, opt);
+  const sealed = await seal(value, secret);
+  return setCookie(headers, name, sealed, opt);
+};
+
+export const getSealedCookie = async (
+  headers: Headers,
+  key: string,
+  secret: string,
+): Promise<unknown | undefined> => {
+  const cookie = getCookie(headers, key);
+  if (!cookie) {
+    return undefined;
+  }
+  return unseal(cookie, secret);
 };

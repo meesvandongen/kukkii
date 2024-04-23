@@ -6,6 +6,8 @@ import {
   setCookie,
   setSignedCookie,
   deleteCookie,
+  setSealedCookie,
+  getSealedCookie,
 } from ".";
 
 describe("Parse cookie", () => {
@@ -298,5 +300,92 @@ describe("Delete cookie", () => {
     expect(header).toBe(
       "delicious_cookie=; Max-Age=0; Domain=example.com; Path=/; Secure",
     );
+  });
+});
+
+describe("Sealed cookie", () => {
+  it("Set/Get sealed cookie", async () => {
+    const responseHeaders = new Headers();
+    await setSealedCookie(
+      responseHeaders,
+      "delicious_cookie",
+      "macha",
+      "secret choco chips",
+    );
+    const header = responseHeaders.get("Set-Cookie")!;
+    expect(header).toMatch(/delicious_cookie=.*; Path=\//);
+
+    const sealed = header.split(";")[0].split("=")[1];
+
+    const requestHeaders = new Headers({
+      Cookie: `delicious_cookie=${sealed}`,
+    });
+
+    const value = await getSealedCookie(
+      requestHeaders,
+      "delicious_cookie",
+      "secret choco chips",
+    );
+
+    expect(value).toBe("macha");
+  });
+
+  it("Set/Get sealed cookie with options", async () => {
+    const responseHeaders = new Headers();
+    await setSealedCookie(
+      responseHeaders,
+      "delicious_cookie",
+      "macha",
+      "secret choco chips",
+      { path: "/a" },
+    );
+    const header = responseHeaders.get("Set-Cookie")!;
+    expect(header).toMatch(/delicious_cookie=.*; Path=\/a/);
+
+    const sealed = header.split(";")[0].split("=")[1];
+
+    const requestHeaders = new Headers({
+      Cookie: `delicious_cookie=${sealed}`,
+    });
+
+    const value = await getSealedCookie(
+      requestHeaders,
+      "delicious_cookie",
+      "secret choco chips",
+    );
+
+    expect(value).toBe("macha");
+  });
+
+  it("rejects when sealed cookie has invalid signature", async () => {
+    const responseHeaders = new Headers();
+    await setSealedCookie(
+      responseHeaders,
+      "delicious_cookie",
+      "macha",
+      "secret choco chips",
+    );
+    const header = responseHeaders.get("Set-Cookie")!;
+    expect(header).toMatch(/delicious_cookie=.*; Path=\//);
+
+    const sealed = header.split(";")[0].split("=")[1];
+
+    const requestHeaders = new Headers({
+      Cookie: `delicious_cookie=${sealed}`,
+    });
+
+    expect(
+      getSealedCookie(requestHeaders, "delicious_cookie", "invalid secret"),
+    ).rejects.toThrow();
+  });
+
+  it("rejects when sealed cookie has invalid value", async () => {
+    const requestHeaders = new Headers({
+      Cookie: `delicious_cookie=invalid_value`,
+    });
+
+    expect(
+      getSealedCookie(requestHeaders, "delicious_cookie", "secret choco chips"),
+    ).rejects.toThrow();
   });
 });
