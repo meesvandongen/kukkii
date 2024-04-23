@@ -14,13 +14,13 @@ import {
 const encryption: SealOptionsSub = {
   saltBits: 256,
   algorithm: "aes-256-cbc",
-  iterations: 1000,
+  iterations: 1,
 };
 
 const integrity: SealOptionsSub = {
   saltBits: 256,
   algorithm: "sha256",
-  iterations: 1000,
+  iterations: 1,
 };
 
 /**
