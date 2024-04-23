@@ -285,7 +285,7 @@ describe("Sealed cookie", () => {
 
   it("Get sealed cookie with multiple values", async () => {
     const requestHeaders = new Headers({
-      Cookie: `delicious_cookie=43ca02793d3794b8f816e7897647705334e0f66e7a2cc65f454d22d7df38f3bb*IvIZ2irISsKWNb16InVMyA*tg-je9HiqQ742lPUVmQAyw*d3f8962bdf91c01a1b947d1079a540d6db0b3c10f696b1131980b64d122ad0f6*7vbgkgbdBFyl5uCibXICilzDcQ8jHauBlDOTBMviYeI; more_delicious_cookie=efe4309c168e62a685f5bffb5d2b6f0d1dbcc56c8ccdbd0b444d13f09692e872*foczA0ljZvJA4b3KG-RewQ*CAa3rAlj4jjiGCr01Xdj6w*cc69bab100d1afdd1755c36db66aa0e991f7caadd0dc8ae03a0c907d5ed4807e*ZDq2FNIZgv-39BN1MqOylXLN8wulM1Bz7OFhKxMamb8;`,
+      Cookie: `delicious_cookie=8a5d7b4a8dcfb3ac0913c2b5ccbbab0edd92eb3f4310f3855795fd3f5627a971*yWLj-68VC_pBNO5IEVSLnQ*Me1qiB1z2QzHNgyiOffxmg*6a86ee89ab37c2ba412fc5c209c3b410ae74b4bc58252e3c243105e29f886b70*u2aXeBW7u_GxzBZegqec4DLQ7EUBu8jd2E4LhETUk9M; more_delicious_cookie=c1695ec7a4c3a1dc4aa6d20dcff7e883b1f67a8e9d51d01091ad1fe32c7367c1*RPNWq0S0wdCDay9YLYu_qA*IagkAhDRtGA5JUx9QTVUpg*6304d35fe58fa0fb1f8dd51e861a8e2dec3a4bae1daa94a5bfd1946a48aeba88*bP4Yt5y-EZ9U1iI1BfZbXd8MWWE1IyGKj5AQTuZVmIg;`,
     });
 
     const value = await getSealedCookie(requestHeaders, "secret");
