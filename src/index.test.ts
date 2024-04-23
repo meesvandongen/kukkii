@@ -316,8 +316,8 @@ describe("Sealed cookie", () => {
     expect(
       await getSealedCookie(
         requestHeaders,
-        "delicious_cookie",
         "invalid secret",
+        "delicious_cookie",
       ),
     ).toBe(false);
   });
