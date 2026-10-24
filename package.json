@@ -9,21 +9,25 @@
     "url": "https://github.com/meesvandongen/kukkii/issues"
   },
   "scripts": {
-    "build": "modern build",
+    "build": "vp pack",
     "changeset": "changeset",
-    "release": "changeset publish",
-    "prerelease": "modern build",
-    "test": "bun test"
+    "release": "pnpm run build && changeset publish",
+    "test": "vp test run",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check"
   },
   "devDependencies": {
-    "@modern-js/module-tools": "2.70.4",
-    "typescript": "~5.4.5",
-    "@types/node": "~20.12.7",
     "@changesets/cli": "^2.27.1",
-    "@types/bun": "^1.1.0",
-    "prettier": "~3.2.5"
+    "@types/node": "~20.12.7",
+    "publint": "^0.3.25",
+    "typescript": "~5.4.5",
+    "vite-plus": "catalog:"
   },
   "sideEffects": [],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
@@ -31,14 +35,15 @@
   "exports": {
     ".": {
       "import": {
-        "default": "./dist/es/index.js",
-        "types": "./dist/types/index.d.ts"
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
       },
       "require": {
-        "default": "./dist/lib/index.js",
-        "types": "./dist/types/index.d.ts"
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
       }
     }
   },
-  "dependencies": {}
+  "dependencies": {},
+  "packageManager": "pnpm@12.15.0+sha512.b3951d6d6ff4a9f13dc7cf56cd28d2b8eb37dbcc9c68e52e1e1191873ea9f82a017287ab50baadc5ccc494f036c67c0e47eb13608c2fa36f47711b61ea128e61"
 }

@@ -15,15 +15,20 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v2
 
-      - uses: oven-sh/setup-bun@v1
+      # pnpm comes from the packageManager field in package.json. pnpm 12 needs a
+      # newer corepack than the one bundled with Node.
+      - run: npm install -g corepack@latest && corepack enable
+
+      - uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 24
+          cache: pnpm
 
       - name: Install Dependencies
-        run: bun i
+        run: pnpm install --frozen-lockfile
 
       - name: Test
-        run: bun test
+        run: pnpm test
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
@@ -31,7 +36,7 @@ jobs:
         with:
           # This expects you to have a script called release which does a build
           # for your packages and calls changeset publish
-          publish: bun run release
+          publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
