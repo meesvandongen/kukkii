@@ -1,4 +1,4 @@
-import { expect, it, describe } from "bun:test";
+import { expect, it, describe } from "vite-plus/test";
 
 import {
   getCookie,
