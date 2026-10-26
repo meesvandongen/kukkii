@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
 
       # pnpm comes from the packageManager field in package.json. pnpm 12 needs a
       # newer corepack than the one bundled with Node.
