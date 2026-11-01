@@ -211,18 +211,51 @@ export async function hmacWithPassword(
 }
 
 /**
+ * The minimum password length, as in iron. Passwords must be random (for
+ * example `openssl rand -base64 32`): keys are derived with a single PBKDF2
+ * iteration.
+ */
+export const MIN_PASSWORD_LENGTH = 32;
+
+function assertPassword(password: string): void {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Password string too short (min ${MIN_PASSWORD_LENGTH} characters required)`,
+    );
+  }
+}
+
+export interface SealOptions {
+  /**
+   * Lifetime in milliseconds. The expiry is part of the authenticated seal, so
+   * `unseal()` rejects the value afterwards, even if someone kept a copy.
+   * @default 0 (never expires)
+   */
+  ttl?: number;
+}
+
+/**
  * Serializes, encrypts, and signs objects into an iron protocol string.
  * @param value Data being sealed
- * @param password A string, buffer or object
- * @param options Object used to customize the key derivation algorithm
+ * @param password A random string of at least 32 characters
+ * @param options Seal options, such as a time to live
  * @returns Iron sealed string
  */
-export async function seal(value: string, password: string): Promise<string> {
+export async function seal(
+  value: string,
+  password: string,
+  options: SealOptions = {},
+): Promise<string> {
+  assertPassword(password);
   const { encrypted, key } = await encrypt(password, encryption, value);
 
   const encryptedB64 = base64urlEncode(new Uint8Array(encrypted));
   const iv = base64urlEncode(key.iv);
-  const macBaseString = `${key.salt}*${iv}*${encryptedB64}`;
+  const expiration =
+    options.ttl && options.ttl > 0 ? `${Date.now() + options.ttl}` : "";
+  const macBaseString = expiration
+    ? `${key.salt}*${iv}*${encryptedB64}*${expiration}`
+    : `${key.salt}*${iv}*${encryptedB64}`;
 
   const mac = await hmacWithPassword(password, integrity, macBaseString);
 
@@ -252,31 +285,42 @@ function fixedTimeComparison(a: string, b: string): boolean {
 /**
  * Verifies, decrypts, and reconstruct an iron protocol string into an object.
  * @param sealed The iron protocol string generated with seal()
- * @param password A string, buffer, or object
- * @param options Object used to customize the key derivation algorithm
+ * @param password The password the value was sealed with
  * @returns The verified decrypted object
  */
 export async function unseal(
   sealed: string,
   password: string,
 ): Promise<string> {
+  assertPassword(password);
   const parts = sealed.split("*");
-  if (parts.length !== 5) {
+  // 5 parts: no expiry; 6 parts: an expiry (epoch milliseconds) before the MAC.
+  if (parts.length !== 5 && parts.length !== 6) {
     throw new Error("Incorrect number of sealed components");
   }
 
   const encryptionSalt = parts[0]!;
   const encryptionIv = parts[1]!;
   const encryptedB64 = parts[2]!;
-  const hmacSalt = parts[3]!;
-  const hmac = parts[4]!;
-  const macBaseString = `${encryptionSalt}*${encryptionIv}*${encryptedB64}`;
+  const expiration = parts.length === 6 ? parts[3]! : undefined;
+  const hmacSalt = parts[parts.length - 2]!;
+  const hmac = parts[parts.length - 1]!;
+  const macBaseString = parts.slice(0, -2).join("*");
 
   const macOptions: GenerateKeyOptions = { ...integrity, salt: hmacSalt };
   const mac = await hmacWithPassword(password, macOptions, macBaseString);
 
   if (!fixedTimeComparison(mac.digest, hmac)) {
     throw new Error("Bad hmac value");
+  }
+
+  if (expiration !== undefined) {
+    if (!/^\d+$/.test(expiration)) {
+      throw new Error("Invalid expiration");
+    }
+    if (Number(expiration) <= Date.now()) {
+      throw new Error("Expired seal");
+    }
   }
 
   const decryptOptions: GenerateKeyOptions = {

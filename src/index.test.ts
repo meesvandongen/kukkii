@@ -1,4 +1,4 @@
-import { expect, it, describe } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   getCookie,
@@ -9,6 +9,10 @@ import {
   setSealedCookie,
   getSealedCookie,
 } from ".";
+import { seal, unseal } from "./iron-webcrypto/iron-webcrypto";
+
+// Sealing passwords must be at least 32 characters, as in iron.
+const SECRET = "secret choco chips that are long enough!";
 
 describe("Parse cookie", () => {
   it("gets cookie", async () => {
@@ -231,12 +235,7 @@ describe("Delete cookie", () => {
 describe("Sealed cookie", () => {
   it("Set/Get sealed cookie", async () => {
     const responseHeaders = new Headers();
-    await setSealedCookie(
-      responseHeaders,
-      "macha",
-      "secret choco chips",
-      "delicious_cookie",
-    );
+    await setSealedCookie(responseHeaders, "macha", SECRET, "delicious_cookie");
     const header = responseHeaders.get("Set-Cookie")!;
     expect(header).toMatch(/delicious_cookie=.*; Path=\//);
 
@@ -248,7 +247,7 @@ describe("Sealed cookie", () => {
 
     const value = await getSealedCookie(
       requestHeaders,
-      "secret choco chips",
+      SECRET,
       "delicious_cookie",
     );
 
@@ -260,7 +259,7 @@ describe("Sealed cookie", () => {
     await setSealedCookie(
       responseHeaders,
       "macha",
-      "secret choco chips",
+      SECRET,
       "delicious_cookie",
       { path: "/a" },
     );
@@ -276,7 +275,7 @@ describe("Sealed cookie", () => {
 
     const value = await getSealedCookie(
       requestHeaders,
-      "secret choco chips",
+      SECRET,
       "delicious_cookie",
     );
 
@@ -285,10 +284,10 @@ describe("Sealed cookie", () => {
 
   it("Get sealed cookie with multiple values", async () => {
     const requestHeaders = new Headers({
-      Cookie: `delicious_cookie=8a5d7b4a8dcfb3ac0913c2b5ccbbab0edd92eb3f4310f3855795fd3f5627a971*yWLj-68VC_pBNO5IEVSLnQ*Me1qiB1z2QzHNgyiOffxmg*6a86ee89ab37c2ba412fc5c209c3b410ae74b4bc58252e3c243105e29f886b70*u2aXeBW7u_GxzBZegqec4DLQ7EUBu8jd2E4LhETUk9M; more_delicious_cookie=c1695ec7a4c3a1dc4aa6d20dcff7e883b1f67a8e9d51d01091ad1fe32c7367c1*RPNWq0S0wdCDay9YLYu_qA*IagkAhDRtGA5JUx9QTVUpg*6304d35fe58fa0fb1f8dd51e861a8e2dec3a4bae1daa94a5bfd1946a48aeba88*bP4Yt5y-EZ9U1iI1BfZbXd8MWWE1IyGKj5AQTuZVmIg;`,
+      Cookie: `delicious_cookie=${encodeURIComponent(await seal("macha", SECRET))}; more_delicious_cookie=${encodeURIComponent(await seal("choco", SECRET))};`,
     });
 
-    const value = await getSealedCookie(requestHeaders, "secret");
+    const value = await getSealedCookie(requestHeaders, SECRET);
 
     expect(value).toEqual({
       delicious_cookie: "macha",
@@ -298,12 +297,7 @@ describe("Sealed cookie", () => {
 
   it("rejects when sealed cookie has invalid signature", async () => {
     const responseHeaders = new Headers();
-    await setSealedCookie(
-      responseHeaders,
-      "macha",
-      "secret choco chips",
-      "delicious_cookie",
-    );
+    await setSealedCookie(responseHeaders, "macha", SECRET, "delicious_cookie");
     const header = responseHeaders.get("Set-Cookie")!;
     expect(header).toMatch(/delicious_cookie=.*\*.*; Path=\//);
 
@@ -316,7 +310,7 @@ describe("Sealed cookie", () => {
     expect(
       await getSealedCookie(
         requestHeaders,
-        "invalid secret",
+        "a different secret that is long enough",
         "delicious_cookie",
       ),
     ).toBe(false);
@@ -328,11 +322,77 @@ describe("Sealed cookie", () => {
     });
 
     expect(
+      await getSealedCookie(requestHeaders, SECRET, "delicious_cookie"),
+    ).toBe(false);
+  });
+});
+
+describe("Sealed cookie hardening", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("rejects passwords shorter than 32 characters", async () => {
+    await expect(
+      setSealedCookie(new Headers(), "macha", "too short", "cookie"),
+    ).rejects.toThrow(/min 32 characters/);
+    await expect(seal("macha", "too short")).rejects.toThrow(/min 32/);
+
+    const sealed = await seal("macha", SECRET);
+    await expect(unseal(sealed, "too short")).rejects.toThrow(/min 32/);
+    expect(
       await getSealedCookie(
-        requestHeaders,
-        "secret choco chips",
-        "delicious_cookie",
+        new Headers({ Cookie: `c=${encodeURIComponent(sealed)}` }),
+        "too short",
+        "c",
       ),
     ).toBe(false);
+  });
+
+  it("keeps unsealing values without an expiry", async () => {
+    const sealed = await seal("macha", SECRET);
+    expect(sealed.split("*")).toHaveLength(5);
+    expect(await unseal(sealed, SECRET)).toBe("macha");
+  });
+
+  it("expires sealed cookies together with their Max-Age", async () => {
+    vi.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") });
+    const responseHeaders = new Headers();
+    await setSealedCookie(responseHeaders, "macha", SECRET, "c", {
+      maxAge: 60,
+    });
+    const value = responseHeaders.get("Set-Cookie")!.split(";")[0].slice(2);
+    expect(decodeURIComponent(value).split("*")).toHaveLength(6);
+    const requestHeaders = new Headers({ Cookie: `c=${value}` });
+
+    vi.setSystemTime(new Date("2026-01-01T00:00:59Z"));
+    expect(await getSealedCookie(requestHeaders, SECRET, "c")).toBe("macha");
+
+    // A copy kept after the cookie expired no longer unseals.
+    vi.setSystemTime(new Date("2026-01-01T00:01:00Z"));
+    expect(await getSealedCookie(requestHeaders, SECRET, "c")).toBe(false);
+  });
+
+  it("expires sealed cookies at their Expires date", async () => {
+    vi.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") });
+    const sealedHeaders = new Headers();
+    await setSealedCookie(sealedHeaders, "macha", SECRET, "c", {
+      expires: new Date("2026-01-02T00:00:00Z"),
+    });
+    const value = sealedHeaders.get("Set-Cookie")!.split(";")[0].slice(2);
+    const requestHeaders = new Headers({ Cookie: `c=${value}` });
+
+    expect(await getSealedCookie(requestHeaders, SECRET, "c")).toBe("macha");
+    vi.setSystemTime(new Date("2026-01-02T00:00:00Z"));
+    expect(await getSealedCookie(requestHeaders, SECRET, "c")).toBe(false);
+  });
+
+  it("authenticates the expiry, so it cannot be extended", async () => {
+    const sealed = await seal("macha", SECRET, { ttl: 60_000 });
+    const parts = sealed.split("*");
+    parts[3] = String(Number(parts[3]) + 365 * 24 * 60 * 60 * 1000);
+    await expect(unseal(parts.join("*"), SECRET)).rejects.toThrow(
+      "Bad hmac value",
+    );
   });
 });

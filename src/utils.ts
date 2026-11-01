@@ -214,13 +214,25 @@ export async function serializeSigned(
   return _serialize(name, value, opt);
 }
 
+/** How long a sealed cookie stays valid: until the cookie itself expires. */
+function sealTtl(opt: CookieOptions): number {
+  if (typeof opt.maxAge === "number" && opt.maxAge > 0) {
+    return Math.floor(opt.maxAge) * 1000;
+  }
+  if (opt.expires) {
+    return Math.max(1, opt.expires.getTime() - Date.now());
+  }
+  return 0;
+}
+
 export async function serializeSealed(
   name: string,
   value: string,
   secret: string,
   opt: CookieOptions = {},
 ): Promise<string> {
-  value = await seal(value, secret);
+  // The seal expires with the cookie, so a copy of it cannot be replayed later.
+  value = await seal(value, secret, { ttl: sealTtl(opt) });
   value = encodeURIComponent(value);
   return _serialize(name, value, opt);
 }
