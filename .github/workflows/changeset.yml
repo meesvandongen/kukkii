@@ -7,6 +7,11 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: write # version commits and release tags
+  pull-requests: write # the "Version Packages" pull request
+  id-token: write # npm trusted publishing (OIDC); no NPM_TOKEN needed
+
 jobs:
   release:
     name: Release
@@ -39,4 +44,5 @@ jobs:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Publishing authenticates through the trusted publisher configured on
+          # npmjs.com (this repository + changeset.yml); provenance is automatic.

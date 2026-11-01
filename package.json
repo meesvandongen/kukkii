@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/meesvandongen/kukkii.git"
+    "url": "git+https://github.com/meesvandongen/kukkii.git"
   },
   "bugs": {
     "url": "https://github.com/meesvandongen/kukkii/issues"
